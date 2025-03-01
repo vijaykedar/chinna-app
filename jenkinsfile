@@ -1,0 +1,64 @@
+pipeline {
+    agent any
+    tools{
+        maven 'maven3'
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                       git branch: 'main', credentialsId: 'mob50', url: 'https://github.com/vijaykedar/chinna-app.git'
+           
+            }
+        }
+        stage('Build Maven') {
+            steps{
+                sh 'mvn clean install'
+            }
+        }
+        
+        stage('Sonar Analysis') {
+            steps{
+                
+                withSonarQubeEnv(installationName: 'sonarqube-8', credentialsId: 'jenkins-sonar') {
+                    sh 'mvn sonar:sonar'  
+                    }
+                
+            }
+        }
+        
+        
+        stage('Upload Artifact') {
+            steps{
+                
+                nexusArtifactUploader artifacts: [
+                    [
+                        artifactId: 'hiring',
+                        classifier: '',
+                        file: 'target/hiring.war',
+                        type: 'war'
+                        ]
+                        ],
+                    credentialsId: 'nexus-cred',
+                    groupId: 'in.javahome',
+                    nexusUrl: '18.234.210.45:8081',
+                    nexusVersion: 'nexus3',
+                    protocol: 'http',
+                    repository: 'maven-releases',
+                    version: '0.5'
+                
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                
+                sshagent(['tomcat-ssh']) {
+                    sh 'scp -o StrictHostKeyChecking=no target/*.war ubuntu@107.23.124.173:/var/lib/tomcat10/webapps'
+                    }
+                
+            }
+        }
+        
+    }
+}
